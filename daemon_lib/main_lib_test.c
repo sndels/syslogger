@@ -10,11 +10,6 @@ int main()
         printf("Failed");
         return 1;
     }
-    printf("Unregistering client\n");
-    if (registerClient(1)){
-        printf("Failed");
-        return 1;
-    }
     printf("Exiting\n");
     return 0;
 }

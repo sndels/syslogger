@@ -1,4 +1,6 @@
+#include <assert.h> // TODO: Actual error handling
 #include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,7 +11,9 @@
 #include <unistd.h>
 
 #include "daemon_messaging.h"
+#include "log_routine.h"
 
+// TODO: Make these atomic, check quit in threads as well
 static int quit = 0;
 static void sig_int(int signo)
 {
@@ -59,6 +63,10 @@ int main(int argc, const char* argv[])
 
     printf("Syslogger ready to receive messages.\n");
 
+    size_t reserved_ids = 2;
+    int used_ids = 0;
+    pthread_t* thread_ids;
+    assert((thread_ids = malloc(sizeof(pthread_t) * reserved_ids)));
     int exit_status = EXIT_SUCCESS;
     do {
         // Wait for messages
@@ -81,10 +89,33 @@ int main(int argc, const char* argv[])
 
         mess->mtext[mlen] = '\0';
         printf("Received type %ld msg '%s'\n", mess->mtype, mess->mtext);
-        // TODO: Register client, thread -pair
-        // TODO: Thread initializes and manages pipe
+
+        // Create log routine for client
+        size_t pid_len = strlen(mess->mtext) + 1;
+        char* arg = (char*) malloc(pid_len);
+        memcpy(arg, mess->mtext, pid_len);
+        // Reserve more thread ids if necessary
+        if (used_ids == reserved_ids) {
+            reserved_ids *= 2;
+            assert((thread_ids = realloc(thread_ids, sizeof(pthread_t) * reserved_ids)));
+        }
+        pthread_create(&thread_ids[used_ids], NULL, log_routine, (void*) arg);
+        used_ids++;
+
+        printf("Threads:\n");
+        for (int i = 0; i < used_ids; i++)
+            printf("%x\n", thread_ids[i]);
 
     } while (!quit);
+
+    printf("Waiting for threads to finish\n");
+    for (int i = 0; i < used_ids; i++) {
+        void* thread_result = NULL;
+        assert((pthread_join(thread_ids[i], &thread_result)) == 0);
+        printf("Thread %d returned with %s\n", i, (char*) thread_result);
+        free(thread_result);
+    }
+    free(thread_ids);
 
     printf("Exiting\n");
 
