@@ -1,0 +1,39 @@
+syslogger
+
+Part 1: Initial plans
+-------------------------------------------------------------------------------
+Syslog was new to me so I started by going through the wikipedia article on the
+subject. The assignment spec doesn't include facility and severity codes so those
+are left as possible extensions if time permits. I figure it would be best to
+define the daemon as a simple program that gives out pipes for client programs.
+Each pipe should probably be opened in it's own thread or process to facilitate
+concurrent messaging from multiple sources. The opening procedure should also
+define a unique name for the client. Logging will at first be done to a single
+file that is passed to the daemon as argument. Writing should be synchronized so
+each pipe watcher writes a whole line at a time. The pipe watchers should be
+terminated when the client closes and possible clients should be notified if the
+daemon is closed with pipes open.
+
+The library interface is probably simplest to define as a init/deninit for reg-
+istering and unregistering clients as well as a single function that takes a
+string and its length as argument. This can be extended to support the codes
+with enum arguments if I decide to do those as well. The library should ask
+for a pipe from the daemon when initialized and inform it when closing. Pipes
+closed from the daemon side should be taken into account as well.
+
+It will probably be a good idea to use a message queues for the (un)registration
+to have handle multiple simultaneous requests robustly. SYSV messages keyed with
+for example the recipent PID and a static unique key for the daemon seem like a
+good choice. A static keyed queue will be used for the (un)registration events
+from clients and communication from daemon to clients, like passing the pipe or
+notification of the daemon exiting, are sent to queues keyed by
+static key ^ client pid. This of course means that any child processes shouldn't
+register logging.
+
+Part 2: Interprocess messaging
+-------------------------------------------------------------------------------
+I started by modifying the sysv example code and setting up basic register and
+unregister functionality between the daemon and library part of the logger. I
+set a hard coded key defined in a header to ensure it staying synchronized and
+the same header will be used for any other definitions that are needed in both
+the library and daemon.
