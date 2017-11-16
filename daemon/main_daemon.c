@@ -12,13 +12,7 @@
 
 #include "daemon_messaging.h"
 #include "log_routine.h"
-
-// TODO: Make these atomic, check quit in threads as well
-static int quit = 0;
-static void sig_int(int signo)
-{
-    if (signo == SIGINT) quit = 1;
-}
+#include "signal_handler.h"
 
 int main(int argc, const char* argv[])
 {
@@ -106,7 +100,7 @@ int main(int argc, const char* argv[])
         for (int i = 0; i < used_ids; i++)
             printf("%x\n", thread_ids[i]);
 
-    } while (!quit);
+    } while (!interrupted());
 
     printf("Waiting for threads to finish\n");
     for (int i = 0; i < used_ids; i++) {

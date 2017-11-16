@@ -36,4 +36,15 @@ I started by modifying the sysv example code and setting up basic register and
 unregister functionality between the daemon and library part of the logger. I
 set a hard coded key defined in a header to ensure it staying synchronized and
 the same header will be used for any other definitions that are needed in both
-the library and daemon.
+the library and daemon. Getting the messaging up and running was pretty straight
+forward with the example code.
+
+Multi-threading the daemon was a logical next step. I added a heap allocated array
+for thread ids and spawned a thread for each registration message. The parent will
+wait for all of the allocated threads to exit before exiting itself. At this point
+I realized that the SIGINT -handling I used in assignment 1 will not suffice here
+as it isn't thread safe and I need to check the set flag in threads as well. I
+moved the signal handler it's own source file and used a mutex on write to the
+static indicator variable. I exposed it to other units via a check function that
+also uses the mutex to ensure the varible isn't read while being changed as there
+is no guarantee which thread goes in the signal handler.
