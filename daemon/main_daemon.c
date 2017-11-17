@@ -6,11 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/ipc.h>
-#include <sys/msg.h>
-#include <sys/types.h>
 #include <unistd.h>
 
-#include "daemon_messaging.h"
+#include "../common/sysv_messaging.h"
 #include "log_routine.h"
 #include "signal_handler.h"
 
@@ -23,34 +21,19 @@ int main(int argc, const char* argv[])
     sig.sa_handler = sig_int;
     sigaction(SIGINT, &sig, NULL);
 
-    key_t key = DAEMON_KEY;
-    int id;
-    typedef struct {
-        long mtype;
-        char mtext[1];
-    } msg_t;
-
-    size_t msize; // Allocated space
-    msg_t* mess;
-    int mlen;
-
-    // Check that the key is free
-    if (msgget(key, 0) != -1) {
-        printf("Queue 0x%08x already active\n", key);
-        return 1;
-    }
-
     printf("Creating message queue\n");
-    if ((id = msgget(key, IPC_CREAT | 0777)) == -1) {
-        perror("msgget");
+    int id;
+    if ((id = crt_sysv(0)) == -1) {
         return 1;
     }
 
     printf("Allocating initial message buffer\n");
-    msize = 20;
+
+    msg_t* mess;
+    size_t msize = 20; // Allocated space
     if ((mess = (msg_t*) malloc(sizeof(long) + msize + 1)) == NULL) {
         perror("malloc");
-        if ((msgctl(id, 0, IPC_RMID)) != -1)
+        if (msgctl(id, 0, IPC_RMID))
             perror("msgctl");
         return 1;
     }
@@ -64,36 +47,19 @@ int main(int argc, const char* argv[])
     int exit_status = EXIT_SUCCESS;
     do {
         // Wait for messages
-        if ((mlen = msgrcv(id, mess, msize, 0, 0)) == -1) {
-            if (errno == EINTR) {
-                break;
-            } else if (errno == E2BIG) {
-                free(mess);
-                msize *= 2;
-                printf("%d message length -> %d\n", getpid(), (int) msize);
-                if ((mess = (msg_t*) malloc(sizeof(long) + msize + 1)) == NULL) {
-                    perror("malloc");
-                    exit_status = EXIT_FAILURE;
-                    break;
-                }
-                continue;
-            } else
-                perror("msgrcv");
-        }
-
-        mess->mtext[mlen] = '\0';
+        if (rcv_sysv(0, 0, &mess, &msize)) break;
         printf("Received type %ld msg '%s'\n", mess->mtype, mess->mtext);
 
         // Create log routine for client
         size_t pid_len = strlen(mess->mtext) + 1;
-        char* arg = (char*) malloc(pid_len);
-        memcpy(arg, mess->mtext, pid_len);
+        char* client = (char*) malloc(pid_len);
+        memcpy(client, mess->mtext, pid_len);
         // Reserve more thread ids if necessary
         if (used_ids == reserved_ids) {
             reserved_ids *= 2;
             assert((thread_ids = realloc(thread_ids, sizeof(pthread_t) * reserved_ids)));
         }
-        pthread_create(&thread_ids[used_ids], NULL, log_routine, (void*) arg);
+        assert(start_log(&thread_ids[used_ids], argv[0], client) == 0);
         used_ids++;
 
         printf("Threads:\n");
@@ -114,7 +80,7 @@ int main(int argc, const char* argv[])
     printf("Exiting\n");
 
     free(mess);
-    if ((msgctl(id, 0, IPC_RMID)) != -1) {
+    if (msgctl(id, 0, IPC_RMID)) {
         perror("msgctl");
         exit_status = EXIT_FAILURE;
     }

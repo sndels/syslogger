@@ -3,8 +3,8 @@
 
 #include <sys/types.h>
 
-int registerClient();
-int unregisterClient();
-int logMessage(const char* msg, size_t mlen);
+int register_client();
+int unregister_client();
+int log_msg(const char* msg);
 
 #endif // LOG_INTERFACE_H

@@ -48,3 +48,12 @@ moved the signal handler it's own source file and used a mutex on write to the
 static indicator variable. I exposed it to other units via a check function that
 also uses the mutex to ensure the varible isn't read while being changed as there
 is no guarantee which thread goes in the signal handler.
+
+I again took the example fifo code and dropped it in the threaded log routine of
+the daemon. A message is sent to the corresponding client to pass the fifo path.
+At this point, I only push any input from the fifo straight to stdout without
+worrying about synchronization between threads as I suspect that a simple mutex
+is not the right idea for it. That would leave all other threads hanging while a
+single one is writing, possibly concatenating subsequent messages because of the
+propagating wait times with high demand. At this point I also moved the sysv
+messaging to a set of wrapper functions to minimize duplicate code.

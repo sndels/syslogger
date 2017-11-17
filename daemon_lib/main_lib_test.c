@@ -6,7 +6,13 @@
 int main()
 {
     printf("Registering client\n");
-    if (registerClient(0)) {
+    if (register_client()) {
+        printf("Failed");
+        return 1;
+    }
+    log_msg("this is a message");
+    printf("Unregistering client\n");
+    if (unregister_client()) {
         printf("Failed");
         return 1;
     }
