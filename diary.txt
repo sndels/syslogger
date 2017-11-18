@@ -57,3 +57,17 @@ is not the right idea for it. That would leave all other threads hanging while a
 single one is writing, possibly concatenating subsequent messages because of the
 propagating wait times with high demand. At this point I also moved the sysv
 messaging to a set of wrapper functions to minimize duplicate code.
+
+Part 3: Thread safe queue
+-------------------------------------------------------------------------------
+One idea that popped in mind was to just have a single writer thread that works
+on a queue of messages. The log routine pushes a new message right away and locks
+the buffer before actually writing tas the output thread might try to read it
+simultaneously. A queue will of course defer all writes until the first message
+in queue is finished but that is necessary to keep things in chronological order.
+A simple linked list coud be a solution with mutexes added for the message contents
+as well as the "next" and "last" pointers. The writer will access a message pushed
+to an empty queue immediately, which requires synchronization so that the message
+is not read in an incomplete state. Checking the next or last pointer while a log
+routine is pushing a new message to the queue will also break things if not
+synchronized.
