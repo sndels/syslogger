@@ -65,9 +65,19 @@ on a queue of messages. The log routine pushes a new message right away and lock
 the buffer before actually writing tas the output thread might try to read it
 simultaneously. A queue will of course defer all writes until the first message
 in queue is finished but that is necessary to keep things in chronological order.
-A simple linked list coud be a solution with mutexes added for the message contents
-as well as the "next" and "last" pointers. The writer will access a message pushed
-to an empty queue immediately, which requires synchronization so that the message
-is not read in an incomplete state. Checking the next or last pointer while a log
-routine is pushing a new message to the queue will also break things if not
-synchronized.
+A simple linked list coud be a solution with mutexes added for the messages as well
+as the queue. The writer will pop a message pushed to an empty queue immediately,
+which requires synchronization to not read incomplete message contents.
+
+Adding a writer routine was pretty straight forward but I did find a fatal bug in
+my message wrapper while trying some different messages: I reallocated a passed
+msg_t pointer parameter so the original was invalidated. The fix was simply passing
+a pointer to the pointer, which would have been obvious had I just thought twice
+when writing the initial implementation.
+
+At this point, I also added a plaintext name to the client parameters to have better
+differentiation. A invalid name (containing a space) will hang the client process,
+as the daemon doesn't know which queue to message, and so far I've not thought of
+a solution not involving hacky waits. It also occured to me that defining the
+previously global interface variables as a struct is a needed. This way, a multi-
+threaded application can create multiple logging connections with different names.
