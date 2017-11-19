@@ -10,17 +10,20 @@
 
 #include "../common/sysv_messaging.h"
 
-// TODO: Make the whole thing thread safe, return struct* from register and pass that around
-static int id = -1;
-static int fd = -1;
-
-int register_client(const char* name)
+const log_client* register_client(const char* name)
 {
+    log_client* client;
+    if ((client = (log_client*) malloc(sizeof(log_client))) == NULL) {
+        fprintf(stderr, "Failed to allocate a new log_client\n");
+        perror("malloc");
+        return NULL;
+    }
+
     pid_t pid = getpid();
-    printf("pid %d", pid);
     // Open queue for daemon->pid messaging
-    if ((id = crt_sysv(pid)) == -1) {
-        return 1;
+    if ((client->sysv_queue = crt_sysv(pid)) == -1) {
+        free(client);
+        return NULL;
     }
     // Reserve message with given type and pid
     /* snprintf(NULL, 0,...) will return number of characters in formatteds string
@@ -32,14 +35,16 @@ int register_client(const char* name)
         perror("msg_t malloc");
         if (msgctl(pid, 0, IPC_RMID))
             perror("msgctl");
-        return 1;
+        free(client);
+        return NULL;
     }
     snprintf(msg, mlen, "%s %d", name, pid);
 
     // Send message
     if (snd_sysv(0, 1, msg, mlen)) {
         free(msg);
-        return 1;
+        free(client);
+        return NULL;
     }
     free(msg);
 
@@ -48,39 +53,54 @@ int register_client(const char* name)
     msg_t* mess;
     if ((mess = (msg_t*) malloc(sizeof(long) + msize + 1)) == NULL) {
         perror("msg_t malloc");
-        return 1;
+        free(client);
+        return NULL;
     }
 
     // This will hang if invalid name sent to daemon
-    if (rcv_sysv(pid, 0, &mess, &msize)) return 1;
+    if (rcv_sysv(pid, 0, &mess, &msize)) {
+        fprintf(stderr, "Failed receiving sysv message\n");
+        free(mess);
+        free(client);
+        return NULL;
+    }
 
     // Open pipe for write
-    if ((fd = open(mess->mtext, O_WRONLY)) == -1) 
+    if ((client->log_pipe = open(mess->mtext, O_WRONLY)) == -1) 
     {
-        perror("Failed to open FIFO");
+        fprintf(stderr, "Failed opening FIFO\n");
+        perror("open");
         free(mess);
-        return 1;
+        free(client);
+        return NULL;
     }
 
     free(mess);
-    return 0;
+    return client;
 }
 
-int unregister_client()
+int unregister_client(const log_client* client)
 {
+    int ret_val = 0;
     // Close pipe
-    close(fd);
-    // Close message queue
-    if (msgctl(id, 0, IPC_RMID)) {
-        perror("msgctl");
-        return 1;
+    if (close(client->log_pipe)) {
+        fprintf(stderr, "Error closing FIFO\n");
+        perror("close");
+        ret_val = 1;
     }
-    return 0;
+    // Close message queue
+    if (msgctl(client->sysv_queue, 0, IPC_RMID)) {
+        fprintf(stderr, "Error closing sysv queue\n");
+        perror("msgctl");
+        ret_val = 1;
+    }
+    free((log_client*) client);
+    return ret_val;
 }
 
-int log_msg(const char* msg)
+int log_msg(const log_client* client, const char* msg)
 {
     // TODO: check if daemon has exited
-    assert(write(fd, msg, strlen(msg)) != -1);
+    assert(write(client->log_pipe, msg, strlen(msg)) != -1);
     return 0;
 }

@@ -6,13 +6,14 @@
 int main()
 {
     printf("Registering client\n");
-    if (register_client("thread0")) {
+    const log_client* client;
+    if ((client = register_client("thread0")) == NULL) {
         printf("Failed");
         return 1;
     }
-    log_msg("this is a message");
+    log_msg(client, "this is a message");
     printf("Unregistering client\n");
-    if (unregister_client()) {
+    if (unregister_client(client)) {
         printf("Failed");
         return 1;
     }
