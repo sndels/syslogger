@@ -34,22 +34,15 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
         free(reg_msg);
         return 1;
     }
-    // Cut pid from name string
-    *name_end = '\0';
-    if ((reg_msg = (char*) realloc(reg_msg, name_end - reg_msg + 1)) == NULL) {
-        fprintf(stderr, "Failed to truncate pid from client name\n");
-        perror("realloc");
-        free(reg_msg);
-        return 1;
-    }
 
-    printf("Concatenating pipe path\n");
     size_t base_path_len = strlen(base_path);
     size_t client_len = strlen(reg_msg);
-    char* pipe_path = (char*) malloc(base_path_len + client_len + 1);
-    memcpy(pipe_path, base_path, base_path_len);
-    memcpy(pipe_path + base_path_len, reg_msg, client_len + 1);
-
+    size_t client_pid_len = strlen(name_end + 1);
+    size_t client_name_len = name_end - reg_msg + 1;
+    char* pipe_path = (char*) calloc(base_path_len + client_len + 1, sizeof(char));
+    memcpy(pipe_path, base_path, base_path_len); // Base path
+    memcpy(pipe_path + base_path_len, name_end + 1, client_pid_len); // PID
+    memcpy(pipe_path + base_path_len + client_pid_len, reg_msg, client_name_len); // Name
 
     printf("Opening pipe %s\n", pipe_path);
     if ((mkfifo(pipe_path, S_IRWXU | S_IWGRP| S_IWOTH) == -1)) {
@@ -60,10 +53,8 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
         return 1;
     }
 
-    printf("Sending pipe path to client\n");
     snd_sysv(client_pid, 1, pipe_path, strlen(pipe_path));
 
-    printf("Opening pipe for read\n");
     int fd;
     if ((fd = open(pipe_path, O_RDONLY)) == -1) 
     {
@@ -71,6 +62,15 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
         remove(pipe_path);
         free(reg_msg);
         free(pipe_path);
+        return 1;
+    }
+
+    // Cut pid from name string
+    *name_end = '\0';
+    if ((reg_msg = (char*) realloc(reg_msg, client_name_len)) == NULL) {
+        fprintf(stderr, "Failed to truncate pid from client name\n");
+        perror("realloc");
+        free(reg_msg);
         return 1;
     }
 
@@ -137,9 +137,6 @@ void* log_routine(void* arg)
 
     printf("Closing thread for client %u %s\n", info->client_pid, info->client_name);
 
-    if (interrupted()) {
-        snd_sysv(info->client_pid, 1, QUITMSG, strlen(QUITMSG));
-    }
     char* client = info->client_name;
     close(info->fd);
     remove(info->pipe_path);

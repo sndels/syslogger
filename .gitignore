@@ -1,4 +1,6 @@
 *.o
+*.a
 syslogger
 syslogger_lib_test
+test
 

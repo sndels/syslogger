@@ -2,6 +2,7 @@
 
 #include <assert.h> // TODO: proper error handling
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,20 +11,18 @@
 
 #include "../common/sysv_messaging.h"
 
-const log_client* register_client(const char* name)
+static pthread_mutex_t reg_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+const int register_client(const char* name)
 {
-    log_client* client;
-    if ((client = (log_client*) malloc(sizeof(log_client))) == NULL) {
-        fprintf(stderr, "Failed to allocate a new log_client\n");
-        perror("malloc");
-        return NULL;
-    }
+    pthread_mutex_lock(&reg_mutex);
 
     pid_t pid = getpid();
     // Open queue for daemon->pid messaging
-    if ((client->sysv_queue = crt_sysv(pid)) == -1) {
-        free(client);
-        return NULL;
+    int sysv_queue;
+    if ((sysv_queue = crt_sysv(pid)) == -1) {
+        pthread_mutex_unlock(&reg_mutex);
+        return -1;
     }
     // Reserve message with given type and pid
     /* snprintf(NULL, 0,...) will return number of characters in formatteds string
@@ -35,16 +34,16 @@ const log_client* register_client(const char* name)
         perror("msg_t malloc");
         if (msgctl(pid, 0, IPC_RMID))
             perror("msgctl");
-        free(client);
-        return NULL;
+        pthread_mutex_unlock(&reg_mutex);
+        return -1;
     }
     snprintf(msg, mlen, "%s %d", name, pid);
 
     // Send message
     if (snd_sysv(0, 1, msg, mlen)) {
+        pthread_mutex_unlock(&reg_mutex);
         free(msg);
-        free(client);
-        return NULL;
+        return -1;
     }
     free(msg);
 
@@ -52,55 +51,62 @@ const log_client* register_client(const char* name)
     size_t msize = 20; // Allocated space
     msg_t* mess;
     if ((mess = (msg_t*) malloc(sizeof(long) + msize + 1)) == NULL) {
+        pthread_mutex_unlock(&reg_mutex);
         perror("msg_t malloc");
-        free(client);
-        return NULL;
+        return -1;
     }
 
     // This will hang if invalid name sent to daemon
     if (rcv_sysv(pid, 0, &mess, &msize)) {
+        pthread_mutex_unlock(&reg_mutex);
         fprintf(stderr, "Failed receiving sysv message\n");
         free(mess);
-        free(client);
-        return NULL;
+        return -1;
     }
 
+    // Close message queue
+    if (msgctl(sysv_queue, 0, IPC_RMID)) {
+        pthread_mutex_unlock(&reg_mutex);
+        fprintf(stderr, "Error closing sysv queue\n");
+        free(mess);
+        return -1;
+    }
+    pthread_mutex_unlock(&reg_mutex);
+
     // Open pipe for write
-    if ((client->log_pipe = open(mess->mtext, O_WRONLY)) == -1) 
+    int log_pipe;
+    if ((log_pipe = open(mess->mtext, O_WRONLY)) == -1) 
     {
         fprintf(stderr, "Failed opening FIFO\n");
         perror("open");
         free(mess);
-        free(client);
-        return NULL;
+        return -1;
     }
 
     free(mess);
-    return client;
+    return log_pipe;
 }
 
-int unregister_client(const log_client* client)
+int unregister_client(const int log_file)
 {
     int ret_val = 0;
     // Close pipe
-    if (close(client->log_pipe)) {
+    if (close(log_file)) {
         fprintf(stderr, "Error closing FIFO\n");
         perror("close");
         ret_val = 1;
     }
-    // Close message queue
-    if (msgctl(client->sysv_queue, 0, IPC_RMID)) {
-        fprintf(stderr, "Error closing sysv queue\n");
-        perror("msgctl");
-        ret_val = 1;
-    }
-    free((log_client*) client);
     return ret_val;
 }
 
-int log_msg(const log_client* client, const char* msg)
+int log_msg(const int log_file, const char* msg)
 {
-    // TODO: check if daemon has exited
-    assert(write(client->log_pipe, msg, strlen(msg)) != -1);
+    // TODO: Set signal handler for SIGPIPE?
+    if (write(log_file, msg, strlen(msg)) == -1) {
+        fprintf(stderr, "Write to log file failed\n");
+        perror("write");
+        return 1;
+    }
+    // TODO: Reset signal handler for SIGPIPE?
     return 0;
 }

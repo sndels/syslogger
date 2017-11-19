@@ -6,8 +6,8 @@
 int main()
 {
     printf("Registering client\n");
-    const log_client* client;
-    if ((client = register_client("thread0")) == NULL) {
+    const int client = register_client("thread0");
+    if (client == -1) {
         printf("Failed");
         return 1;
     }
