@@ -51,6 +51,8 @@ int snd_sysv(key_t client, long mtype, const char* msg, size_t mlen)
         perror("msgsnd");
         return 1;
     }
+
+    free(mess);
     return 0;
 }
 
