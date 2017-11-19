@@ -10,10 +10,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "logmsg_queue.h"
 #include "signal_handler.h"
 #include "../common/sysv_messaging.h"
 
-#define BUFSIZE 128
+#define BUFSIZE 64
 #define ERRMSG "opening pipe failed"
 #define QUITMSG "daemon quit"
 
@@ -68,16 +69,49 @@ int start_log(pthread_t* thread_id, const char* base_path, char* client)
 void* log_routine(void* arg)
 {
     logr_init* info = (logr_init*) arg;
+    size_t client_len = strlen(info->client);
     // Listen pipe
     printf("Listeing pipe\n");
     char buf[BUFSIZE];
-    int buflen;
+    size_t buf_len;
+    size_t queued_len;
+    int new_read = 1;
+    logmsg* msg;
     while (!interrupted()) {
-        buflen = read(info->fd, buf, BUFSIZE);
-        buf[buflen] = '\0';
-        if (buflen > 0) // Handle messages longer than BUFSIZE as one
-            printf("Got \"%s\"\n", buf);
-        else
+        buf_len = read(info->fd, buf, BUFSIZE);
+        buf[buf_len] = '\0';
+        if (buf_len > 0) {// TODO: Handle messages longer than BUFSIZE as one
+            if (new_read) {
+                // Create and queue new log message
+                msg = create_logmsg();
+                pthread_mutex_lock(&msg->mutex);
+                queue_logmsg(msg);// Should be locked to preven premature access
+
+                // Copy client name to message
+                msg->client = (char*) malloc(client_len + 1);
+                memcpy(msg->client, info->client, client_len);
+                msg->client[client_len] = '\0';
+
+                // Copy received buffer to message
+                msg->buf = (char*) malloc(buf_len + 1);
+                memcpy(msg->buf, buf, buf_len);
+                queued_len = buf_len;
+            } else {
+                // Copy received buffer to message
+                msg->buf = (char*) realloc(msg->buf, queued_len + buf_len + 1);
+                memcpy(msg->buf + queued_len, buf, buf_len);
+                queued_len += buf_len;
+            }
+            msg->buf[queued_len] = '\0';
+
+            // Only start a new message if read did fit in buffer
+            if (buf_len < BUFSIZE) {
+                // Unlock message
+                pthread_mutex_unlock(&msg->mutex);
+                new_read = 1;
+            } else 
+                new_read = 0;
+        } else
             break;
     }
 

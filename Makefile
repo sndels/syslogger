@@ -3,7 +3,7 @@ CC=gcc
 CFLAGS= -g -Wall -pedantic
 
 DAEMON_SRC_DIR=daemon
-DAEMON_OBJ=signal_handler.o log_routine.o main_daemon.o
+DAEMON_OBJ=signal_handler.o logmsg_queue.o log_routine.o write_routine.o main_daemon.o
 DAEMON_DEPS=-pthread
 
 # TODO: static lib of this

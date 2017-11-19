@@ -10,6 +10,7 @@
 
 #include "../common/sysv_messaging.h"
 #include "log_routine.h"
+#include "write_routine.h"
 #include "signal_handler.h"
 
 int main(int argc, const char* argv[])
@@ -27,6 +28,29 @@ int main(int argc, const char* argv[])
         return 1;
     }
 
+    // Open log file
+    size_t path_len = strlen(argv[0]);
+    char* log_path = (char*) malloc(path_len + 5);
+    memcpy(log_path, argv[0], path_len);
+    memcpy(log_path + path_len, ".log", path_len);
+    log_path[path_len + 4] = '\0';
+
+    FILE* log_file;
+    log_file = fopen (log_path, "a");
+    free(log_path);
+    if (log_file == NULL)
+    {
+        fprintf(stderr, "Error opening log file for append\n");
+        perror("fopen");
+        if (msgctl(id, 0, IPC_RMID))
+            perror("msgctl");
+        return 1;
+    }
+
+    // Start write thread
+    pthread_t write_thread_id;
+    pthread_create(&write_thread_id, NULL, write_routine, (void*) log_file);
+
     printf("Allocating initial message buffer\n");
 
     msg_t* mess;
@@ -35,6 +59,7 @@ int main(int argc, const char* argv[])
         perror("malloc");
         if (msgctl(id, 0, IPC_RMID))
             perror("msgctl");
+        fclose(log_file);
         return 1;
     }
 
@@ -64,11 +89,11 @@ int main(int argc, const char* argv[])
 
         printf("Threads:\n");
         for (int i = 0; i < used_ids; i++)
-            printf("%x\n", thread_ids[i]);
+            printf("%lx\n", thread_ids[i]);
 
     } while (!interrupted());
 
-    printf("Waiting for threads to finish\n");
+    printf("Waiting for client threads to finish\n");
     for (int i = 0; i < used_ids; i++) {
         void* thread_result = NULL;
         assert((pthread_join(thread_ids[i], &thread_result)) == 0);
@@ -76,6 +101,11 @@ int main(int argc, const char* argv[])
         free(thread_result);
     }
     free(thread_ids);
+
+    printf("Waiting for log thread to finish\n");
+    void* thread_result = NULL;
+    assert((pthread_join(write_thread_id, &thread_result)) == 0);
+    assert((long) thread_result == 0);
 
     printf("Exiting\n");
 

@@ -1,6 +1,7 @@
 #include "logmsg_queue.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct logmsg_queue {
     logmsg* first;
@@ -9,12 +10,12 @@ typedef struct logmsg_queue {
     pthread_mutex_t mutex;
 } logmsg_queue;
 
-static logmsg_queue logmsg_q = { NULL, NULL, PTHREAD_MUTEX_INITIALIZER };
+static logmsg_queue logmsg_q = { NULL, NULL, 0, PTHREAD_MUTEX_INITIALIZER };
 
 logmsg* create_logmsg()
 {
     logmsg* msg;
-    if (msg = (logmsg*) malloc(sizeof(logmsg)) == NULL) {
+    if ((msg = (logmsg*) malloc(sizeof(logmsg))) == NULL) {
         fprintf(stderr, "Allocating new logmsg failed\n");
         perror("malloc");
         return NULL;
