@@ -3,7 +3,8 @@
 
 #include <sys/types.h>
 
-int register_client();
+// Note: name should not contain spaces or the function will hang
+int register_client(const char* name);
 int unregister_client();
 int log_msg(const char* msg);
 

@@ -21,11 +21,12 @@ void* write_routine(void* arg)
             long millis = msg->time.tv_nsec / 1000000;
 
             // Print formatted log message to file
-            fprintf(log_file, "%s.%03ld %s %s\n", date_buf, millis, msg->client, msg->buf);
+            fprintf(log_file, "%s.%03ld %d %s %s\n",
+                    date_buf, millis, msg->client_pid, msg->client_name, msg->buf);
 
             // Free resources
             free(msg->buf);
-            free(msg->client);
+            free(msg->client_name);
             free(msg);
         } else
             usleep(50000);

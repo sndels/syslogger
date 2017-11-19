@@ -6,7 +6,8 @@
 
 typedef struct logmsg {
     struct timespec time;
-    char* client;
+    int client_pid;
+    char* client_name;
     char* buf;
     struct logmsg* next;
     pthread_mutex_t mutex;

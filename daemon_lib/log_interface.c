@@ -10,29 +10,31 @@
 
 #include "../common/sysv_messaging.h"
 
+// TODO: Make the whole thing thread safe, return struct* from register and pass that around
 static int id = -1;
 static int fd = -1;
 
-int register_client()
+int register_client(const char* name)
 {
-    pid_t client = getpid();
-    // Open queue for daemon->client messaging
-    if ((id = crt_sysv(client)) == -1) {
+    pid_t pid = getpid();
+    printf("pid %d", pid);
+    // Open queue for daemon->pid messaging
+    if ((id = crt_sysv(pid)) == -1) {
         return 1;
     }
     // Reserve message with given type and pid
     /* snprintf(NULL, 0,...) will return number of characters in formatteds string
      * %+d will print sign so actual size is one less
      */
-    size_t mlen = snprintf(NULL, 0, "%+d", client);
+    size_t mlen = strlen(name) + 1 + snprintf(NULL, 0, "%+d", pid);
     char* msg;
     if ((msg = malloc(mlen)) == NULL) {
         perror("msg_t malloc");
-        if (msgctl(client, 0, IPC_RMID))
+        if (msgctl(pid, 0, IPC_RMID))
             perror("msgctl");
         return 1;
     }
-    snprintf(msg, mlen, "%d", client);
+    snprintf(msg, mlen, "%s %d", name, pid);
 
     // Send message
     if (snd_sysv(0, 1, msg, mlen)) {
@@ -49,7 +51,8 @@ int register_client()
         return 1;
     }
 
-    if (rcv_sysv(client, 0, &mess, &msize)) return 1;
+    // This will hang if invalid name sent to daemon
+    if (rcv_sysv(pid, 0, &mess, &msize)) return 1;
 
     // Open pipe for write
     if ((fd = open(mess->mtext, O_WRONLY)) == -1) 

@@ -18,32 +18,50 @@
 #define ERRMSG "opening pipe failed"
 #define QUITMSG "daemon quit"
 
-int start_log(pthread_t* thread_id, const char* base_path, char* client)
+int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
 {
-    // Get client id as long
-    printf("Converting client id to log\n");
-    long client_long;
-    sscanf(client, "%li", &client_long);
+    // Parse client info form register message
+    char* name_end = strchr(reg_msg, ' ');
+    if (name_end == NULL || name_end == reg_msg) {
+        fprintf(stderr, "Invalid message format: %s\n", reg_msg);
+        free(reg_msg);
+        return 1;
+    }
+    // Get pid
+    int client_pid;
+    if (sscanf(name_end + 1, "%d", &client_pid) != 1) {
+        fprintf(stderr, "Invalid client pid: %s\n", name_end + 1);
+        free(reg_msg);
+        return 1;
+    }
+    // Cut pid from name string
+    *name_end = '\0';
+    if ((reg_msg = (char*) realloc(reg_msg, name_end - reg_msg + 1)) == NULL) {
+        fprintf(stderr, "Failed to truncate pid from client name\n");
+        perror("realloc");
+        free(reg_msg);
+        return 1;
+    }
 
     printf("Concatenating pipe path\n");
     size_t base_path_len = strlen(base_path);
-    size_t client_len = strlen(client);
+    size_t client_len = strlen(reg_msg);
     char* pipe_path = (char*) malloc(base_path_len + client_len + 1);
     memcpy(pipe_path, base_path, base_path_len);
-    memcpy(pipe_path + base_path_len, client, client_len + 1);
+    memcpy(pipe_path + base_path_len, reg_msg, client_len + 1);
 
 
     printf("Opening pipe %s\n", pipe_path);
     if ((mkfifo(pipe_path, S_IRWXU | S_IWGRP| S_IWOTH) == -1)) {
-        snd_sysv(client_long, 1, ERRMSG, strlen(ERRMSG));
+        snd_sysv(client_pid, 1, ERRMSG, strlen(ERRMSG));
         perror("mkfifo");
-        free(client);
+        free(reg_msg);
         free(pipe_path);
         return 1;
     }
 
     printf("Sending pipe path to client\n");
-    snd_sysv(client_long, 1, pipe_path, strlen(pipe_path));
+    snd_sysv(client_pid, 1, pipe_path, strlen(pipe_path));
 
     printf("Opening pipe for read\n");
     int fd;
@@ -51,16 +69,17 @@ int start_log(pthread_t* thread_id, const char* base_path, char* client)
     {
         perror("Failed to open FIFO");
         remove(pipe_path);
-        free(client);
+        free(reg_msg);
         free(pipe_path);
         return 1;
     }
 
-    printf("Opening thread for client %s\n", client);
+    printf("Opening thread for client %d %s\n", client_pid, reg_msg);
     logr_init* arg = (logr_init*) malloc(sizeof(logr_init));
     arg->pipe_path = pipe_path;
     arg->fd = fd;
-    arg->client = client;
+    arg->client_pid = client_pid;
+    arg->client_name = reg_msg;
     pthread_create(thread_id, NULL, log_routine, (void*) arg);
 
     return 0;
@@ -69,7 +88,7 @@ int start_log(pthread_t* thread_id, const char* base_path, char* client)
 void* log_routine(void* arg)
 {
     logr_init* info = (logr_init*) arg;
-    size_t client_len = strlen(info->client);
+    size_t client_len = strlen(info->client_name);
     // Listen pipe
     printf("Listeing pipe\n");
     char buf[BUFSIZE];
@@ -88,9 +107,10 @@ void* log_routine(void* arg)
                 queue_logmsg(msg);// Should be locked to preven premature access
 
                 // Copy client name to message
-                msg->client = (char*) malloc(client_len + 1);
-                memcpy(msg->client, info->client, client_len);
-                msg->client[client_len] = '\0';
+                msg->client_pid = info->client_pid;
+                msg->client_name = (char*) malloc(client_len + 1);
+                memcpy(msg->client_name, info->client_name, client_len);
+                msg->client_name[client_len] = '\0';
 
                 // Copy received buffer to message
                 msg->buf = (char*) malloc(buf_len + 1);
@@ -115,14 +135,12 @@ void* log_routine(void* arg)
             break;
     }
 
-    printf("Closing thread for client %s\n", info->client);
+    printf("Closing thread for client %u %s\n", info->client_pid, info->client_name);
 
     if (interrupted()) {
-        long client;
-        sscanf(info->client, "%li", &client);
-        snd_sysv(client, 1, QUITMSG, strlen(QUITMSG));
+        snd_sysv(info->client_pid, 1, QUITMSG, strlen(QUITMSG));
     }
-    char* client = info->client;
+    char* client = info->client_name;
     close(info->fd);
     remove(info->pipe_path);
     free(info->pipe_path);

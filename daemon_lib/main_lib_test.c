@@ -6,7 +6,7 @@
 int main()
 {
     printf("Registering client\n");
-    if (register_client()) {
+    if (register_client("thread0")) {
         printf("Failed");
         return 1;
     }

@@ -75,22 +75,20 @@ int main(int argc, const char* argv[])
         if (rcv_sysv(0, 0, &mess, &msize)) break;
         printf("Received type %ld msg '%s'\n", mess->mtype, mess->mtext);
 
-        // Create log routine for client
-        size_t pid_len = strlen(mess->mtext) + 1;
-        char* client = (char*) malloc(pid_len);
-        memcpy(client, mess->mtext, pid_len);
+        // Copy message to another buffer
+        size_t reg_msg_len = strlen(mess->mtext) + 1;
+        char* reg_msg = (char*) malloc(reg_msg_len);
+        memcpy(reg_msg, mess->mtext, reg_msg_len);
+
         // Reserve more thread ids if necessary
         if (used_ids == reserved_ids) {
             reserved_ids *= 2;
             assert((thread_ids = realloc(thread_ids, sizeof(pthread_t) * reserved_ids)));
         }
-        assert(start_log(&thread_ids[used_ids], argv[0], client) == 0);
-        used_ids++;
 
-        printf("Threads:\n");
-        for (int i = 0; i < used_ids; i++)
-            printf("%lx\n", thread_ids[i]);
-
+        // Start new thread for logging
+        if (start_log(&thread_ids[used_ids], argv[0], reg_msg) == 0)
+            used_ids++;
     } while (!interrupted());
 
     printf("Waiting for client threads to finish\n");
