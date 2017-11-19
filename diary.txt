@@ -81,3 +81,15 @@ as the daemon doesn't know which queue to message, and so far I've not thought o
 a solution not involving hacky waits. It also occured to me that defining the
 previously global interface variables as a struct is a needed. This way, a multi-
 threaded application can create multiple logging connections with different names.
+
+Part 4: Stress testing
+-------------------------------------------------------------------------------
+I made a simple client program that spawns threads for logging and logs messages
+consisting of the pid, thread number and accurate time to match with the log output.
+[describe commit's other changes!] Syslogger can currently handle three simultaneous
+clients with ten threads each writing with 1 ms waits. Some pairs of messages do get
+concatenated into one but the clients are not mixed. The next step would be to
+go through the code and clean up error handling while trying to figure out a more
+bullet proof system. I suspect that is not really viable with the current logmsg-
+queue as that is likely the bottle neck in leaving threads waiting for lock until
+the next message is already written to pipe.
