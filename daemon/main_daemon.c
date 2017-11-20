@@ -32,7 +32,7 @@ int main(int argc, const char* argv[])
     size_t path_len = strlen(argv[0]);
     char* log_path = (char*) malloc(path_len + 5);
     memcpy(log_path, argv[0], path_len);
-    memcpy(log_path + path_len, ".log", path_len);
+    memcpy(log_path + path_len, ".log", 4);
     log_path[path_len + 4] = '\0';
 
     FILE* log_file;
@@ -90,6 +90,7 @@ int main(int argc, const char* argv[])
         if (start_log(&thread_ids[used_ids], argv[0], reg_msg) == 0)
             used_ids++;
     } while (!interrupted());
+    free(mess);
 
     printf("Waiting for client threads to finish\n");
     for (int i = 0; i < used_ids; i++) {
@@ -107,7 +108,6 @@ int main(int argc, const char* argv[])
 
     printf("Exiting\n");
 
-    free(mess);
     if (msgctl(id, 0, IPC_RMID)) {
         perror("msgctl");
         exit_status = EXIT_FAILURE;

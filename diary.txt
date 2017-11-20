@@ -86,10 +86,11 @@ Part 4: Stress testing
 -------------------------------------------------------------------------------
 I made a simple client program that spawns threads for logging and logs messages
 consisting of the pid, thread number and accurate time to match with the log output.
-[describe commit's other changes!] Syslogger can currently handle three simultaneous
-clients with ten threads each writing with 1 ms waits. Some pairs of messages do get
-concatenated into one but the clients are not mixed. The next step would be to
-go through the code and clean up error handling while trying to figure out a more
-bullet proof system. I suspect that is not really viable with the current logmsg-
-queue as that is likely the bottle neck in leaving threads waiting for lock until
-the next message is already written to pipe.
+[describe commit's other changes!] On my i7-machine, syslogger can currently handle
+at least three simultaneous clients with ten threads each writing with 1 ms waits.
+Some pairs of messages do get concatenated into one but the clients are not mixed.
+I suspect that is not really viable with the current logmsg- queue as that is likely
+the bottle neck in leaving threads waiting for lock until the next message is already
+written to pipe. As such, further optimization probably isn't worth the effort.
+The next step will be to go through the code to clean up error handling and find
+out ways to break the current system.

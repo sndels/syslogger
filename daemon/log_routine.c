@@ -1,5 +1,6 @@
 #include "log_routine.h"
 
+#include <assert.h> // TODO: Actual error handling
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -88,7 +89,7 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
 void* log_routine(void* arg)
 {
     logr_init* info = (logr_init*) arg;
-    size_t client_len = strlen(info->client_name);
+    const size_t client_len = strlen(info->client_name);
     // Listen pipe
     printf("Listeing pipe\n");
     char buf[BUFSIZE];
@@ -108,7 +109,7 @@ void* log_routine(void* arg)
 
                 // Copy client name to message
                 msg->client_pid = info->client_pid;
-                msg->client_name = (char*) malloc(client_len + 1);
+                assert((msg->client_name = (char*) malloc(client_len + 1)));
                 memcpy(msg->client_name, info->client_name, client_len);
                 msg->client_name[client_len] = '\0';
 
@@ -142,5 +143,5 @@ void* log_routine(void* arg)
     remove(info->pipe_path);
     free(info->pipe_path);
     free(info);
-    pthread_exit(client);
+    return client;
 }
