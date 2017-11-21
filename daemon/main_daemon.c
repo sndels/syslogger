@@ -1,5 +1,6 @@
 #include <assert.h> // TODO: Actual error handling
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -28,19 +29,32 @@ int main(int argc, const char* argv[])
         return 1;
     }
 
-    // Open log file
-    size_t path_len = strlen(argv[0]);
-    char* log_path = (char*) malloc(path_len + 5);
-    memcpy(log_path, argv[0], path_len);
-    memcpy(log_path + path_len, ".log", 4);
-    log_path[path_len + 4] = '\0';
+    // Get absolute path to executable
+    char* exe_path;
+    assert((exe_path = (char*) calloc(PATH_MAX + 1, sizeof(char))));
+    if (readlink("/proc/self/exe", exe_path, PATH_MAX) == -1) {
+        fprintf(stderr, "Could not obtain absolute path to daemon\n");
+        perror("readlink");
+        return 1;
+    }
+    size_t path_len = strlen(exe_path);
 
+    // Define log path
+    char* log_path;
+    assert((log_path = (char*) calloc(PATH_MAX + 1, sizeof(char))));
+    memcpy(log_path, exe_path, path_len);
+    if (path_len < PATH_MAX - 4)
+        memcpy(log_path + path_len, ".log", 4);
+    else
+        memcpy(log_path + PATH_MAX - 4, ".log", 4);
+
+    // Open log file
     FILE* log_file;
     log_file = fopen (log_path, "a");
     free(log_path);
     if (log_file == NULL)
     {
-        fprintf(stderr, "Error opening log file for append\n");
+        fprintf(stderr, "Error opening log file\n");
         perror("fopen");
         if (msgctl(id, 0, IPC_RMID))
             perror("msgctl");
@@ -87,9 +101,10 @@ int main(int argc, const char* argv[])
         }
 
         // Start new thread for logging
-        if (start_log(&thread_ids[used_ids], argv[0], reg_msg) == 0)
+        if (start_log(&thread_ids[used_ids], exe_path, reg_msg) == 0)
             used_ids++;
     } while (!interrupted());
+    free(exe_path);
     free(mess);
 
     printf("Waiting for client threads to finish\n");

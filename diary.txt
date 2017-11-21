@@ -94,3 +94,9 @@ the bottle neck in leaving threads waiting for lock until the next message is al
 written to pipe. As such, further optimization probably isn't worth the effort.
 The next step will be to go through the code to clean up error handling and find
 out ways to break the current system.
+
+Part 5: Clean up
+-------------------------------------------------------------------------------
+So far, I've used paths relative to argv[0] of the daemon, which doesn't work
+reliably with relative call paths. I found out that /proc/self/exe will contain
+a symlink to the absolute path so I switched to that as my base.
