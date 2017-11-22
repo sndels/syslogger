@@ -9,9 +9,8 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int interrupted()
 {
-    int was_quit;
     pthread_mutex_lock(&mutex);
-    was_quit = quit;
+    int was_quit = quit;
     pthread_mutex_unlock(&mutex);
     return was_quit;
 }

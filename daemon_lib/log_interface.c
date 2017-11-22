@@ -101,12 +101,10 @@ int unregister_client(const int log_file)
 
 int log_msg(const int log_file, const char* msg)
 {
-    // TODO: Set signal handler for SIGPIPE?
     if (write(log_file, msg, strlen(msg)) == -1) {
         fprintf(stderr, "Write to log file failed\n");
         perror("write");
         return 1;
     }
-    // TODO: Reset signal handler for SIGPIPE?
     return 0;
 }

@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -14,9 +15,8 @@ static pthread_mutex_t q_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int should_quit()
 {
-    int ret_val;
     pthread_mutex_lock(&q_mutex);
-    ret_val = quit;
+    int ret_val = quit;
     pthread_mutex_unlock(&q_mutex);
     return ret_val;
 }
@@ -59,6 +59,9 @@ static void* test_routine(void* arg)
 
 int main()
 {
+    // Ignore SIGPIPE as required by libdaemon
+    signal(SIGPIPE, SIG_IGN);
+
     // Start test threads
     pthread_t* thread_ids;
     assert((thread_ids = malloc(sizeof(pthread_t) * THREADS)));
@@ -67,6 +70,7 @@ int main()
     }
 
     // Wait for console input to end test
+    printf("Press any key to quit\n");
     getchar();
     pthread_mutex_lock(&q_mutex);
     quit = 1;
@@ -77,7 +81,6 @@ int main()
         void* thread_result = NULL;
         assert((pthread_join(thread_ids[i], &thread_result)) == 0);
         printf("Thread %d returned with %lu\n", i, (long) thread_result);
-        free(thread_result);
     }
     free(thread_ids);
 

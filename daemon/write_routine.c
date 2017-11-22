@@ -29,7 +29,7 @@ void* write_routine(void* arg)
             free(msg->client_name);
             free(msg);
         } else
-            usleep(50000);
+            usleep(10000);
     }
 
     fclose(log_file);
