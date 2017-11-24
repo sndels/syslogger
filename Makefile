@@ -1,6 +1,6 @@
 # Base from http://www.cs.colby.edu/maxwell/courses/tutorials/maketutor/
 CC=gcc
-CFLAGS= -g -Wall -pedantic
+CFLAGS= -O2 -Wall -pedantic
 
 DAEMON_SRC_DIR=daemon
 DAEMON_OBJ=signal_handler.o logmsg_queue.o log_routine.o write_routine.o main_daemon.o

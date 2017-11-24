@@ -49,7 +49,7 @@ static void* test_routine(void* arg)
             ret_val = 1;
             break;
         }
-        usleep(1000);
+        usleep(20000);
     }
     printf("thread %ld finished logging\n", (long) arg);
 

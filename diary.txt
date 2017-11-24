@@ -86,14 +86,19 @@ Part 4: Stress testing
 -------------------------------------------------------------------------------
 I made a simple client program that spawns threads for logging and logs messages
 consisting of the pid, thread number and accurate time to match with the log output.
-[describe commit's other changes!] On my i7-machine, syslogger can currently handle
-at least three simultaneous clients with ten threads each writing with 1 ms waits.
-Some pairs of messages do get concatenated into one but the clients are not mixed.
-I suspect that is not really viable with the current logmsg- queue as that is likely
-the bottle neck in leaving threads waiting for lock until the next message is already
-written to pipe. As such, further optimization probably isn't worth the effort.
-The next step will be to go through the code to clean up error handling and find
-out ways to break the current system.
+[describe commit's other changes!] On the Maari computers (pitohui), syslogger could
+handle up to 1 ms message rate from a single client, but increasing threads results
+in some pairs of messages getting concatenated into one but the clients are not mixed.
+For example, generating 2,5 million messages from 20 clients at one message per
+millisecond per client results in 78 combined messages, 18 of which include 3 or more.
+This is due to pthread_mutex_lock giving the lock to any of the waiting threads so
+sometimes one might be waiting for a long time. Implementing a simple ticket lock
+by only using mutexes for incrementing the integer ticket seemed to drop the number
+of concatenations. However, there were still 14 concats of 3 messages or more so
+optimizing the mutexed code blocks from a maximum of ~15 instructions down to 3
+doesn't really make a difference. This does make sense as the system's scheduler
+probably works with larger chunks of execution :D As it stands, the limit with
+20 clients is around 1000 messsages per second as a whole.
 
 Part 5: Clean up
 -------------------------------------------------------------------------------
