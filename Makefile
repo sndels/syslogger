@@ -1,6 +1,6 @@
 # Base from http://www.cs.colby.edu/maxwell/courses/tutorials/maketutor/
 CC=gcc
-CFLAGS= -g -Wall -pedantic
+CFLAGS= -O2 -Wall -pedantic
 
 DAEMON_SRC_DIR=daemon
 DAEMON_OBJ=signal_handler.o logmsg_queue.o log_routine.o write_routine.o main_daemon.o
@@ -18,16 +18,16 @@ DAEMON_DEPS=-pthread
 all: syslogger libsyslogger.a syslogger_lib_test test
 
 %.o: $(DAEMON_SRC_DIR)/%.c
-		$(CC) -c -o $@ $< $(CFLAGS)
+		$(CC) $(CFLAGS) -c -o $@ $<
 
 %.o: $(DAEMONLIB_SRC_DIR)/%.c
-		$(CC) -c -o $@ $< $(CFLAGS)
+		$(CC) $(CFLAGS) -c -o $@ $<
 
 %.o: $(COMMON_SRC_DIR)/%.c
-		$(CC) -c -o $@ $< $(CFLAGS)
+		$(CC) $(CFLAGS) -c -o $@ $<
 
 %.o: $(TESTAPP_SRC_DIR)/%.c
-		$(CC) -c -o $@ $< $(CFLAGS)
+		$(CC) $(CFLAGS) -c -o $@ $<
 
 syslogger: $(DAEMON_OBJ) $(COMMON_OBJ)
 		gcc -pthread -o $@ $^

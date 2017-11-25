@@ -48,7 +48,7 @@ void queue_logmsg(logmsg* msg)
     pthread_mutex_unlock(&logmsg_q.mutex);
 }
 
-logmsg* dequeue_logmsg()
+logmsg* dequeue_all_logmsgs()
 {
     pthread_mutex_lock(&logmsg_q.mutex);
 
@@ -57,23 +57,14 @@ logmsg* dequeue_logmsg()
         return NULL;
     }
 
+    // Dequeue the whole linked list
     logmsg* first = logmsg_q.first;
-    if (logmsg_q.len == 1) {
-        logmsg_q.first = NULL;
-        logmsg_q.last = NULL;
-    } else
-        logmsg_q.first = first->next;
 
-    logmsg_q.len--;
+    logmsg_q.first = NULL;
+    logmsg_q.last = NULL;
+    logmsg_q.len = 0;
 
     pthread_mutex_unlock(&logmsg_q.mutex);
-
-    // Wait for possible write in buffer
-    pthread_mutex_lock(&first->mutex);
-    pthread_mutex_unlock(&first->mutex);
-
-    // Set next pointer to null for safety
-    first->next = NULL;
 
     return first;
 }

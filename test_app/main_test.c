@@ -9,6 +9,7 @@
 #include "../daemon_lib/log_interface.h"
 
 #define THREADS 10
+#define MESSAGE_GAP_MS 5
 
 static int quit = 0;
 static pthread_mutex_t q_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -34,6 +35,7 @@ static void* test_routine(void* arg)
     char date_buf[16] = {'\0'};
     char msg_buf[64] = {'\0'};
     long ret_val = 0;
+    int sleep_us = MESSAGE_GAP_MS * 1000;
     printf("thread %ld logging\n", (long) arg);
     while (!should_quit()) {
         // Format timestamp
@@ -49,7 +51,7 @@ static void* test_routine(void* arg)
             ret_val = 1;
             break;
         }
-        usleep(1000);
+        usleep(sleep_us);
     }
     printf("thread %ld finished logging\n", (long) arg);
 

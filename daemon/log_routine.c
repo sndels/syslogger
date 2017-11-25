@@ -135,6 +135,9 @@ void* log_routine(void* arg)
         } else
             break;
     }
+    // Unlock incomplete message to not hang the writer
+    if (new_read == 0)
+        pthread_mutex_unlock(&msg->mutex);
 
     printf("Closing thread for client %u %s\n", info->client_pid, info->client_name);
 

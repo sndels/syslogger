@@ -15,6 +15,6 @@ typedef struct logmsg {
 
 logmsg* create_logmsg();
 void queue_logmsg(logmsg* msg);
-logmsg* dequeue_logmsg();
+logmsg* dequeue_all_logmsgs();
 
 #endif // LOGMSG_QUEUE_H

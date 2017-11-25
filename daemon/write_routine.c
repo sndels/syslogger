@@ -14,8 +14,16 @@ void* write_routine(void* arg)
     // Write queued messages to file
     logmsg* msg;
     char date_buf[16] = {'\0'};
-    while ((msg = dequeue_logmsg()) != NULL || !interrupted()) {
-        if (msg != NULL) {
+    while ((msg = dequeue_all_logmsgs()) != NULL || !interrupted()) {
+        if (msg == NULL) {
+            usleep(50000);
+            continue;
+        } 
+        while (msg != NULL) {
+            // Wait for possible write in buffer
+            pthread_mutex_lock(&msg->mutex);
+            pthread_mutex_unlock(&msg->mutex);
+
             // Format timestamp
             strftime(date_buf, 16, "%b %e %T", gmtime(&msg->time.tv_sec));
             long millis = msg->time.tv_nsec / 1000000;
@@ -25,11 +33,12 @@ void* write_routine(void* arg)
                     date_buf, millis, msg->client_pid, msg->client_name, msg->buf);
 
             // Free resources
+            logmsg* next_msg = msg->next;
             free(msg->buf);
             free(msg->client_name);
             free(msg);
-        } else
-            usleep(10000);
+            msg = next_msg;
+        }
     }
 
     fclose(log_file);

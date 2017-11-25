@@ -86,14 +86,28 @@ Part 4: Stress testing
 -------------------------------------------------------------------------------
 I made a simple client program that spawns threads for logging and logs messages
 consisting of the pid, thread number and accurate time to match with the log output.
-[describe commit's other changes!] On my i7-machine, syslogger can currently handle
-at least three simultaneous clients with ten threads each writing with 1 ms waits.
-Some pairs of messages do get concatenated into one but the clients are not mixed.
-I suspect that is not really viable with the current logmsg- queue as that is likely
-the bottle neck in leaving threads waiting for lock until the next message is already
-written to pipe. As such, further optimization probably isn't worth the effort.
-The next step will be to go through the code to clean up error handling and find
-out ways to break the current system.
+On my i7-machine, syslogger can currently handle ten clients each writing with 5 ms
+waits. Pushing more traffic will cause a tiny amount of messages to be concatenated
+as some threads will randomly wait for lock on the message queue until another
+message has already been written to the pipe.  This is due to pthread_mutex_lock's
+order for multiple waiting threads not being being defined, let alone FIFO.
+
+I tried implementing a ticket based lock by giving each thread an integer as ticket
+and spinwaiting until the current thread to be "served" matches that. The performance
+increase wasn't significant and some weird bugs were introduced from my quick
+implementation so I didn't keep the ticket-system. The limited increase in performance
+was expected as my original mutexed queue code was already pretty compact (~15
+instuctions at most according to godbolt, compared to the 3 of the ticket increase)
+so the optimization was most likely masked by the system's scheduler.
+
+It seems to me that a more robust system would require some other kind of queue
+implementation as the bottleneck is the speed at which I can push messages to the
+queue. Using a message queue instead of a pipe for inter-process messaging would
+enable splitting the messages without using some set character but even that would
+result in the time code after a long wait drifting. As it stands, I don't see a way
+to make the logger's performance truly deterministic while keeping the current
+capacity and ordering in the logging. A queueing thread for each pipe watcher
+seems overkill.
 
 Part 5: Clean up
 -------------------------------------------------------------------------------
