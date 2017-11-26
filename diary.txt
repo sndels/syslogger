@@ -113,4 +113,5 @@ Part 5: Clean up
 -------------------------------------------------------------------------------
 So far, I've used paths relative to argv[0] of the daemon, which doesn't work
 reliably with relative call paths. I found out that /proc/self/exe will contain
-a symlink to the absolute path so I switched to that as my base.
+a symlink to the absolute path so I switched to that as my base. I also swapped
+the remaining asserts for porper logic.

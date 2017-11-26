@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -66,7 +65,11 @@ int main()
 
     // Start test threads
     pthread_t* thread_ids;
-    assert((thread_ids = malloc(sizeof(pthread_t) * THREADS)));
+    if ((thread_ids = malloc(sizeof(pthread_t) * THREADS)) == NULL) {
+        fprintf(stderr, "Failed to allocate threads\n");
+        return 1;
+    }
+
     for (long i = 0; i < THREADS; i++) {
         pthread_create(&thread_ids[i], NULL, test_routine, (void*) i);
     }
@@ -81,8 +84,11 @@ int main()
     // Wait for test threads to exit
     for (int i = 0; i < THREADS; i++) {
         void* thread_result = NULL;
-        assert((pthread_join(thread_ids[i], &thread_result)) == 0);
-        printf("Thread %d returned with %lu\n", i, (long) thread_result);
+        int ret_val = pthread_join(thread_ids[i], &thread_result);
+        if (ret_val)
+            fprintf(stderr, "Thread %d join returned with error %d\n", i, ret_val);
+        else
+            printf("Thread %d returned with %lu\n", i, (long) thread_result);
     }
     free(thread_ids);
 

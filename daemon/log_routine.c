@@ -1,6 +1,5 @@
 #include "log_routine.h"
 
-#include <assert.h> // TODO: Actual error handling
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -36,6 +35,8 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
         return 1;
     }
 
+    printf("Opening thread for client %d %s\n", client_pid, reg_msg);
+
     size_t base_path_len = strlen(base_path);
     size_t client_len = strlen(reg_msg);
     size_t client_pid_len = strlen(name_end + 1);
@@ -45,7 +46,6 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
     memcpy(pipe_path + base_path_len, name_end + 1, client_pid_len); // PID
     memcpy(pipe_path + base_path_len + client_pid_len, reg_msg, client_name_len); // Name
 
-    printf("Opening pipe %s\n", pipe_path);
     if ((mkfifo(pipe_path, S_IRWXU | S_IWGRP| S_IWOTH) == -1)) {
         snd_sysv(client_pid, 1, ERRMSG, strlen(ERRMSG));
         perror("mkfifo");
@@ -75,7 +75,6 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
         return 1;
     }
 
-    printf("Opening thread for client %d %s\n", client_pid, reg_msg);
     logr_init* arg = (logr_init*) malloc(sizeof(logr_init));
     arg->pipe_path = pipe_path;
     arg->fd = fd;
@@ -91,12 +90,12 @@ void* log_routine(void* arg)
     logr_init* info = (logr_init*) arg;
     const size_t client_len = strlen(info->client_name);
     // Listen pipe
-    printf("Listeing pipe\n");
     char buf[BUFSIZE];
     size_t buf_len;
     size_t queued_len;
     int new_read = 1;
     logmsg* msg;
+    long exit_val = 0;
     while (!interrupted()) {
         buf_len = read(info->fd, buf, BUFSIZE);
         buf[buf_len] = '\0';
@@ -109,12 +108,26 @@ void* log_routine(void* arg)
 
                 // Copy client name to message
                 msg->client_pid = info->client_pid;
-                assert((msg->client_name = (char*) malloc(client_len + 1)));
+                if ((msg->client_name = (char*) malloc(client_len + 1)) == NULL) {
+                    fprintf(stderr, "Failed to allocate space for msg client_name %s\nThread exits\n", info->client_name);
+                    pthread_mutex_unlock(&msg->mutex);
+                    new_read = 1;
+                    exit_val = 1;
+                    break;
+                }
                 memcpy(msg->client_name, info->client_name, client_len);
                 msg->client_name[client_len] = '\0';
 
                 // Copy received buffer to message
-                msg->buf = (char*) malloc(buf_len + 1);
+                if ((msg->buf = (char*) malloc(buf_len + 1)) == NULL) {
+                    fprintf(stderr, "Failed to allocate space for msg buf for client %s\nThread exits\n", msg->client_name);
+                    free(msg->client_name);
+                    msg->client_name = NULL;
+                    pthread_mutex_unlock(&msg->mutex);
+                    new_read = 1;
+                    exit_val = 1;
+                    break;
+                }
                 memcpy(msg->buf, buf, buf_len);
                 queued_len = buf_len;
             } else {
@@ -141,10 +154,10 @@ void* log_routine(void* arg)
 
     printf("Closing thread for client %u %s\n", info->client_pid, info->client_name);
 
-    char* client = info->client_name;
     close(info->fd);
     remove(info->pipe_path);
     free(info->pipe_path);
+    free(info->client_name);
     free(info);
-    return client;
+    return (void*) exit_val;
 }

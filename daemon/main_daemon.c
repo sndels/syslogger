@@ -1,4 +1,3 @@
-#include <assert.h> // TODO: Actual error handling
 #include <errno.h>
 #include <limits.h>
 #include <pthread.h>
@@ -23,25 +22,32 @@ int main(int argc, const char* argv[])
     sig.sa_handler = sig_int;
     sigaction(SIGINT, &sig, NULL);
 
-    printf("Creating message queue\n");
     int id;
-    if ((id = crt_sysv(0)) == -1) {
-        return 1;
-    }
+    if ((id = crt_sysv(0)) == -1) return 1;
 
     // Get absolute path to executable
     char* exe_path;
-    assert((exe_path = (char*) calloc(PATH_MAX + 1, sizeof(char))));
+    if ((exe_path = (char*) calloc(PATH_MAX + 1, sizeof(char))) == NULL) {
+        fprintf(stderr, "Failed to allocate memory for daemon absolute path\n");
+        perror("calloc");
+        return 1;
+    }
     if (readlink("/proc/self/exe", exe_path, PATH_MAX) == -1) {
         fprintf(stderr, "Could not obtain absolute path to daemon\n");
         perror("readlink");
+        free(exe_path);
         return 1;
     }
     size_t path_len = strlen(exe_path);
 
     // Define log path
     char* log_path;
-    assert((log_path = (char*) calloc(PATH_MAX + 1, sizeof(char))));
+    if ((log_path = (char*) calloc(PATH_MAX + 1, sizeof(char))) == NULL) {
+        fprintf(stderr, "Failed to allocate memory for log absolute path\n");
+        perror("calloc");
+        free(exe_path);
+        return 1;
+    }
     memcpy(log_path, exe_path, path_len);
     if (path_len < PATH_MAX - 4)
         memcpy(log_path + path_len, ".log", 4);
@@ -58,6 +64,7 @@ int main(int argc, const char* argv[])
         perror("fopen");
         if (msgctl(id, 0, IPC_RMID))
             perror("msgctl");
+        free(exe_path);
         return 1;
     }
 
@@ -65,29 +72,33 @@ int main(int argc, const char* argv[])
     pthread_t write_thread_id;
     pthread_create(&write_thread_id, NULL, write_routine, (void*) log_file);
 
-    printf("Allocating initial message buffer\n");
-
     msg_t* mess;
     size_t msize = 20; // Allocated space
     if ((mess = (msg_t*) malloc(sizeof(long) + msize + 1)) == NULL) {
+        fprintf(stderr, "Failed to allocate the initial message buffer\n");
         perror("malloc");
         if (msgctl(id, 0, IPC_RMID))
             perror("msgctl");
         fclose(log_file);
+        free(exe_path);
         return 1;
     }
 
     printf("Syslogger ready to receive messages.\n");
 
-    size_t reserved_ids = 2;
+    size_t reserved_ids = 1;
     int used_ids = 0;
     pthread_t* thread_ids;
-    assert((thread_ids = malloc(sizeof(pthread_t) * reserved_ids)));
+    if ((thread_ids = malloc(sizeof(pthread_t) * reserved_ids)) == NULL) {
+        fprintf(stderr, "Failed to allocate memory for threads\n");
+        perror("malloc");
+        free(exe_path);
+        return 1;
+    }
     int exit_status = EXIT_SUCCESS;
     do {
         // Wait for messages
         if (rcv_sysv(0, 0, &mess, &msize)) break;
-        printf("Received type %ld msg '%s'\n", mess->mtype, mess->mtext);
 
         // Copy message to another buffer
         size_t reg_msg_len = strlen(mess->mtext) + 1;
@@ -97,7 +108,11 @@ int main(int argc, const char* argv[])
         // Reserve more thread ids if necessary
         if (used_ids == reserved_ids) {
             reserved_ids *= 2;
-            assert((thread_ids = realloc(thread_ids, sizeof(pthread_t) * reserved_ids)));
+            if ((thread_ids = realloc(thread_ids, sizeof(pthread_t) * reserved_ids)) == NULL) {
+                fprintf(stderr, "Failed to allocate memory for threads\n");
+                perror("malloc");
+                break;
+            }
         }
 
         // Start new thread for logging
@@ -110,16 +125,21 @@ int main(int argc, const char* argv[])
     printf("Waiting for client threads to finish\n");
     for (int i = 0; i < used_ids; i++) {
         void* thread_result = NULL;
-        assert((pthread_join(thread_ids[i], &thread_result)) == 0);
-        printf("Thread %d returned with %s\n", i, (char*) thread_result);
-        free(thread_result);
+        int ret_val = pthread_join(thread_ids[i], &thread_result);
+        if (ret_val)
+            fprintf(stderr, "Thread %d join returned with error %d\n", i, ret_val);
+        else
+            printf("Thread %d returned with %ld\n", i, (long) thread_result);
     }
     free(thread_ids);
 
     printf("Waiting for log thread to finish\n");
     void* thread_result = NULL;
-    assert((pthread_join(write_thread_id, &thread_result)) == 0);
-    assert((long) thread_result == 0);
+    int ret_val = pthread_join(write_thread_id, &thread_result);
+    if (ret_val)
+        fprintf(stderr, "Writer thread join returned with error %d\n", ret_val);
+    else
+        printf("Writer thread returned with %ld\n", (long) thread_result);
 
     printf("Exiting\n");
 

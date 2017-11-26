@@ -1,6 +1,5 @@
 #include "log_interface.h"
 
-#include <assert.h> // TODO: proper error handling
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdlib.h>

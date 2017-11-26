@@ -23,19 +23,20 @@ void* write_routine(void* arg)
             // Wait for possible write in buffer
             pthread_mutex_lock(&msg->mutex);
             pthread_mutex_unlock(&msg->mutex);
+            if (&msg->client_name != NULL && &msg->buf != NULL) {
+                // Format timestamp
+                strftime(date_buf, 16, "%b %e %T", gmtime(&msg->time.tv_sec));
+                long millis = msg->time.tv_nsec / 1000000;
 
-            // Format timestamp
-            strftime(date_buf, 16, "%b %e %T", gmtime(&msg->time.tv_sec));
-            long millis = msg->time.tv_nsec / 1000000;
+                // Print formatted log message to file
+                fprintf(log_file, "%s.%03ld %d %s %s\n",
+                        date_buf, millis, msg->client_pid, msg->client_name, msg->buf);
 
-            // Print formatted log message to file
-            fprintf(log_file, "%s.%03ld %d %s %s\n",
-                    date_buf, millis, msg->client_pid, msg->client_name, msg->buf);
-
-            // Free resources
+                // Free resources
+                free(msg->buf);
+                free(msg->client_name);
+            }
             logmsg* next_msg = msg->next;
-            free(msg->buf);
-            free(msg->client_name);
             free(msg);
             msg = next_msg;
         }
