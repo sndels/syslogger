@@ -26,11 +26,16 @@ logmsg* create_logmsg()
         free(msg);
         return NULL;
     }
+    int ret_val = pthread_mutex_init(&msg->mutex, NULL);
+    if (ret_val) {
+        fprintf(stderr, "Initializing mutex returned error %d\n", ret_val);
+        free(msg);
+        return NULL;
+    }
     msg->client_pid = 0;
     msg->client_name = NULL;
     msg->buf = NULL;
     msg->next = NULL;
-    pthread_mutex_init(&msg->mutex, NULL);
     return msg;
 }
 

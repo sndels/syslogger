@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <signal.h>
 
-// TODO: Make these atomic, check quit in threads as well
 static int quit = 0;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 

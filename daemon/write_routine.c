@@ -18,11 +18,10 @@ void* write_routine(void* arg)
         if (msg == NULL) {
             usleep(50000);
             continue;
-        } 
+        }
         while (msg != NULL) {
             // Wait for possible write in buffer
             pthread_mutex_lock(&msg->mutex);
-            pthread_mutex_unlock(&msg->mutex);
             if (&msg->client_name != NULL && &msg->buf != NULL) {
                 // Format timestamp
                 strftime(date_buf, 16, "%b %e %T", gmtime(&msg->time.tv_sec));
@@ -37,6 +36,8 @@ void* write_routine(void* arg)
                 free(msg->client_name);
             }
             logmsg* next_msg = msg->next;
+            pthread_mutex_unlock(&msg->mutex);
+            pthread_mutex_destroy(&msg->mutex);
             free(msg);
             msg = next_msg;
         }

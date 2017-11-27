@@ -29,7 +29,7 @@ static void* test_routine(void* arg)
     if (client == -1) {
         return (void*) 1;
     }
-    snprintf(name, 20, "%dthread%ld", getpid(), (long) arg);
+    snprintf(name, 20, "%d thread%ld", getpid(), (long) arg);
 
     char date_buf[16] = {'\0'};
     char msg_buf[64] = {'\0'};

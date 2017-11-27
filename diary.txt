@@ -89,7 +89,7 @@ consisting of the pid, thread number and accurate time to match with the log out
 On my i7-machine, syslogger can currently handle ten clients each writing with 5 ms
 waits. Pushing more traffic will cause a tiny amount of messages to be concatenated
 as some threads will randomly wait for lock on the message queue until another
-message has already been written to the pipe.  This is due to pthread_mutex_lock's
+message has already been written to the pipe. This is due to pthread_mutex_lock's
 order for multiple waiting threads not being being defined, let alone FIFO.
 
 I tried implementing a ticket based lock by giving each thread an integer as ticket
@@ -98,20 +98,22 @@ increase wasn't significant and some weird bugs were introduced from my quick
 implementation so I didn't keep the ticket-system. The limited increase in performance
 was expected as my original mutexed queue code was already pretty compact (~15
 instuctions at most according to godbolt, compared to the 3 of the ticket increase)
-so the optimization was most likely masked by the system's scheduler.
+so the optimization was most likely masked by the cost of the mutex operations and
+scheduling.
 
 It seems to me that a more robust system would require some other kind of queue
-implementation as the bottleneck is the speed at which I can push messages to the
-queue. Using a message queue instead of a pipe for inter-process messaging would
-enable splitting the messages without using some set character but even that would
-result in the time code after a long wait drifting. As it stands, I don't see a way
-to make the logger's performance truly deterministic while keeping the current
-capacity and ordering in the logging. A queueing thread for each pipe watcher
-seems overkill.
+implementation or synchronization mechanism as the bottleneck is the speed at which
+I can push messages to the queue. The current mutex bottleneck means that the queue
+might not be better than mutexing a write to the file direclty. Using a message
+queue instead of a pipe for inter process messaging would enable splitting the messages without using some set character but even that would result in the time code after a
+long wait drifting. As it stands, I don't see a way to make the logger's performance
+truly deterministic while keeping the current capacity and ordering in the logging.
+A queueing thread for each pipe watcher seems overkill.
 
 Part 5: Clean up
 -------------------------------------------------------------------------------
 So far, I've used paths relative to argv[0] of the daemon, which doesn't work
 reliably with relative call paths. I found out that /proc/self/exe will contain
 a symlink to the absolute path so I switched to that as my base. I also swapped
-the remaining asserts for porper logic.
+the remaining asserts for porper logic and fixed a deadlock when a listener is
+interrupted mid-msg.

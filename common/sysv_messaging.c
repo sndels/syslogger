@@ -89,9 +89,3 @@ int rcv_sysv(key_t client, long mtype, msg_t** msg, size_t* msize)
     (*msg)->mtext[mlen] = '\0';
     return 0;
 }
-
-int chk_sysv(key_t client)
-{
-    // TODO: check if message present
-    return 0;
-}

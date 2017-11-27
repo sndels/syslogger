@@ -99,10 +99,13 @@ void* log_routine(void* arg)
     while (!interrupted()) {
         buf_len = read(info->fd, buf, BUFSIZE);
         buf[buf_len] = '\0';
-        if (buf_len > 0) {// TODO: Handle messages longer than BUFSIZE as one
+        if (buf_len > 0) {
             if (new_read) {
                 // Create and queue new log message
-                msg = create_logmsg();
+                if ((msg = create_logmsg()) == NULL) {
+                    fprintf(stderr, "Failed to create new message\nThread exits\n");
+                    break;
+                }
                 pthread_mutex_lock(&msg->mutex);
                 queue_logmsg(msg);// Should be locked to preven premature access
 
