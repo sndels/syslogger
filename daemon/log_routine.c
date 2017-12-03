@@ -20,6 +20,7 @@
 
 int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
 {
+    printf("Opening thread for client %s\n", reg_msg);
     // Parse client info form register message
     char* name_end = strchr(reg_msg, ' ');
     if (name_end == NULL || name_end == reg_msg) {
@@ -34,8 +35,6 @@ int start_log(pthread_t* thread_id, const char* base_path, char* reg_msg)
         free(reg_msg);
         return 1;
     }
-
-    printf("Opening thread for client %d %s\n", client_pid, reg_msg);
 
     size_t base_path_len = strlen(base_path);
     size_t client_len = strlen(reg_msg);
@@ -155,7 +154,7 @@ void* log_routine(void* arg)
     if (new_read == 0)
         pthread_mutex_unlock(&msg->mutex);
 
-    printf("Closing thread for client %u %s\n", info->client_pid, info->client_name);
+    printf("Closing thread for client %s %u\n", info->client_name, info->client_pid);
 
     close(info->fd);
     remove(info->pipe_path);

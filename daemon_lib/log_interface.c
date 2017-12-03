@@ -10,6 +10,7 @@
 
 #include "../common/sysv_messaging.h"
 
+// Multiple threads might want to start their own logging and messaging is by PID
 static pthread_mutex_t reg_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 const int register_client(const char* name)

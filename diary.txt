@@ -103,12 +103,15 @@ scheduling.
 
 It seems to me that a more robust system would require some other kind of queue
 implementation or synchronization mechanism as the bottleneck is the speed at which
-I can push messages to the queue. The current mutex bottleneck means that the queue
-might not be better than mutexing a write to the file direclty. Using a message
-queue instead of a pipe for inter process messaging would enable splitting the messages without using some set character but even that would result in the time code after a
-long wait drifting. As it stands, I don't see a way to make the logger's performance
-truly deterministic while keeping the current capacity and ordering in the logging.
-A queueing thread for each pipe watcher seems overkill.
+I can push messages to the queue. Using a spinlock actually decreased performance
+as even the 5ms waits resulted in concatenated messages. The current mutex bottleneck
+means that the queue might not be better than mutexing a write to the file direclty.
+Using a message queue instead of a pipe for inter process messaging would enable
+splitting the messages without using some set character but even that would result
+in the time code after a long wait drifting. As it stands, I don't see a way to make
+the logger's performance truly deterministic while keeping the current capacity and
+ordering in the logging. A queueing thread for each pipe watcher with some way to
+keep writes in order seems overkill for this assignment.
 
 Part 5: Clean up
 -------------------------------------------------------------------------------

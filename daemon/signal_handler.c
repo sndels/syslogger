@@ -4,6 +4,11 @@
 #include <signal.h>
 
 static int quit = 0;
+/*
+ * Mutex is not really needed as only one thread will handle the signal and
+ * ints are guaranteed to give either the value before or after write for reading
+ * threads. But then again, using one really doesn't hurt either.
+ */
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int interrupted()
